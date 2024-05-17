@@ -1,131 +1,52 @@
-//
-// Created by herve on 13-04-2024.
-//
-
+#include <cub/cub.cuh>
+#include <cuda_runtime.h>
 #include "histogram_eq.h"
-#include <omp.h>
 
 namespace cp {
     constexpr auto HISTOGRAM_LENGTH = 256;
 
-    static float inline prob(const int x, const int size) {
-        return (float) x / (float) size;
+
+    __global__ void histogram_kernel(const unsigned char *gray_image, int size, int *histogram) {
+        int tid = threadIdx.x + blockIdx.x * blockDim.x;
+        if (tid < size) {
+            atomicAdd(&histogram[gray_image[tid]], 1);
+        }
     }
 
 
-    static unsigned char inline correct_color(float cdf_val, float cdf_min) {
-        return static_cast<unsigned char>(255 * (cdf_val - cdf_min) / (1 - cdf_min));
+    void compute_cdf(const int *histogram, float *cdf, int size) {
+        int *d_temp_storage = nullptr;
+        size_t temp_storage_bytes = 0;
+
+
+        cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, histogram, cdf, HISTOGRAM_LENGTH);
+        cudaMalloc(&d_temp_storage, temp_storage_bytes);
+        cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, histogram, cdf, HISTOGRAM_LENGTH);
+        cudaFree(d_temp_storage);
+
+
+        thrust::transform(thrust::device, cdf, cdf + HISTOGRAM_LENGTH, cdf, [size] __device__ (float x) {
+            return x / size;
+        });
     }
 
-    std::vector<float> parallel_prefix_sum(const std::vector<float> &arr) {
-        if (arr.empty()) return {};
-
-        int n = arr.size();
-        std::vector<float> result(n, 0.0f);
-        int num_threads = omp_get_max_threads();
-        std::vector<float> sums(num_threads, 0.0f);
-
-        // Calculate the local prefix sums for each chunk of the array in parallel
-#pragma omp parallel
-        {
-            int tid = omp_get_thread_num();
-            int start = tid * n / num_threads;
-            int end = (tid + 1) * n / num_threads;
-
-            // Handle the case where n is not evenly divisible by num_threads
-            if (tid == num_threads - 1) {
-                end = n;
-            }
-
-            if (start < end) {
-                result[start] = arr[start];
-                for (int i = start + 1; i < end; ++i) {
-                    result[i] = result[i - 1] + arr[i];
-                }
-                sums[tid] = result[end - 1];
-            }
+    __global__ void equalization_kernel(const unsigned char *input_image_data, float *output_image_data,
+                                        const float *cdf, float cdf_min, int size) {
+        int tid = threadIdx.x + blockIdx.x * blockDim.x;
+        if (tid < size) {
+            output_image_data[tid] = 255.0f * (cdf[input_image_data[tid]] - cdf_min) / (1.0f - cdf_min);
         }
-
-        // Compute the total sum for each chunk
-        for (int i = 1; i < num_threads; ++i) {
-            sums[i] += sums[i - 1];
-        }
-
-        // In parallel, update each chunk with the sum of the previous chunks
-#pragma omp parallel
-        {
-            int tid = omp_get_thread_num();
-            int start = tid * n / num_threads;
-            int end = (tid + 1) * n / num_threads;
-
-            if (tid == num_threads - 1) {
-                end = n;
-            }
-
-            if (tid > 0) {
-                float add = sums[tid - 1];
-                for (int i = start; i < end; ++i) {
-                    result[i] += add;
-                }
-            }
-        }
-
-        return result;
     }
 
-    static void histogram_equalization(const int width, const int height,
-                                       const float *input_image_data,
-                                       float *output_image_data,
-                                       const std::shared_ptr<unsigned char[]> &uchar_image,
-                                       const std::shared_ptr<unsigned char[]> &gray_image,
-                                       int (&histogram)[HISTOGRAM_LENGTH],
-                                       float (&cdf)[HISTOGRAM_LENGTH]) {
-
-        constexpr auto channels = 3;
-        const auto size = width * height;
-        const auto size_channels = size * channels;
-
-#pragma omp parallel for
-        for (int i = 0; i < size_channels; i++)
-            uchar_image[i] = (unsigned char) (255 * input_image_data[i]);
-
-#pragma omp parallel for
-        for (int i = 0; i < height; i++)
-#pragma omp parallel for firstprivate(i)
-                for (int j = 0; j < width; j++) {
-                    auto idx = i * width + j;
-                    auto r = uchar_image[3 * idx];
-                    auto g = uchar_image[3 * idx + 1];
-                    auto b = uchar_image[3 * idx + 2];
-                    gray_image[idx] = static_cast<unsigned char>(0.21 * r + 0.71 * g + 0.07 * b);
-                }
-
-        std::fill(histogram, histogram + HISTOGRAM_LENGTH, 0);
-
-
-        for (int i = 0; i < size; i++)
-            histogram[gray_image[i]]++;
-
-        cdf[0] = prob(histogram[0], size);
-        auto cdf_min = cdf[0];
-        for (int i = 1; i < HISTOGRAM_LENGTH; i++) {
-            cdf[i] = cdf[i - 1] + prob(histogram[i], size);
+    template <typename T>
+    __global__ void convert_to_gray_kernel(const T *input_image_data, unsigned char *gray_image, int size) {
+        int tid = threadIdx.x + blockIdx.x * blockDim.x;
+        if (tid < size) {
+            gray_image[tid] = 0.299f * input_image_data[3 * tid] + 0.587f * input_image_data[3 * tid + 1] + 0.114f * input_image_data[3 * tid + 2];
         }
-
-        for (int i = 0; i < size_channels; i++) {
-            uchar_image[i] = correct_color(cdf[uchar_image[i]], cdf_min);
-        }
-
-#pragma parallel for
-        for (int i = 0; i < size_channels; i++)
-            output_image_data[i] = static_cast<float>(uchar_image[i]) / 255.0f;
     }
 
     wbImage_t iterative_histogram_equalization(wbImage_t &input_image, int iterations) {
-
-        // Input 1 2 5 4 9 7 0 1
-        // Output: 1 3 8 12 21 28 28 29
-
         const auto width = wbImage_getWidth(input_image);
         const auto height = wbImage_getHeight(input_image);
         constexpr auto channels = 3;
@@ -136,20 +57,66 @@ namespace cp {
         float *input_image_data = wbImage_getData(input_image);
         float *output_image_data = wbImage_getData(output_image);
 
-        std::shared_ptr<unsigned char[]> uchar_image(new unsigned char[size_channels]);
         std::shared_ptr<unsigned char[]> gray_image(new unsigned char[size]);
-
         int histogram[HISTOGRAM_LENGTH];
         float cdf[HISTOGRAM_LENGTH];
 
-        for (int i = 0; i < iterations; i++) {
-            histogram_equalization(width, height,
-                                   input_image_data, output_image_data,
-                                   uchar_image, gray_image,
-                                   histogram, cdf);
+        // Device arrays
+        unsigned char *d_gray_image;
+        int *d_histogram;
+        float *d_cdf;
+        float *d_input_image_data;
+        float *d_output_image_data;
 
-            input_image_data = output_image_data;
+
+        cudaMalloc((void **)&d_gray_image, size * sizeof(unsigned char));
+        cudaMalloc((void **)&d_histogram, HISTOGRAM_LENGTH * sizeof(int));
+        cudaMalloc((void **)&d_cdf, HISTOGRAM_LENGTH * sizeof(float));
+        cudaMalloc((void **)&d_input_image_data, size_channels * sizeof(float));
+        cudaMalloc((void **)&d_output_image_data, size_channels * sizeof(float));
+
+        cudaMemcpy(d_input_image_data, input_image_data, size_channels * sizeof(float), cudaMemcpyHostToDevice);
+
+        for (int i = 0; i < iterations; i++) {
+
+            convert_to_gray_kernel<<<(size + 255) / 256, 256>>>(d_input_image_data, d_gray_image, size);
+            cudaDeviceSynchronize();
+
+
+            cudaMemset(d_histogram, 0, HISTOGRAM_LENGTH * sizeof(int));
+            histogram_kernel<<<(size + 255) / 256, 256>>>(d_gray_image, size, d_histogram);
+            cudaDeviceSynchronize();
+
+
+            compute_cdf(d_histogram, d_cdf, size);
+
+            // Copy CDF from device to host
+            cudaMemcpy(cdf, d_cdf, HISTOGRAM_LENGTH * sizeof(float), cudaMemcpyDeviceToHost);
+
+
+            float cdf_min = cdf[0];
+            for (int j = 1; j < HISTOGRAM_LENGTH; j++) {
+                if (cdf[j] < cdf_min) {
+                    cdf_min = cdf[j];
+                }
+            }
+
+
+            equalization_kernel<<<(size + 255) / 256, 256>>>(d_gray_image, d_output_image_data, d_cdf, cdf_min, size);
+            cudaDeviceSynchronize();
+
+
+            cudaMemcpy(d_input_image_data, d_output_image_data, size_channels * sizeof(float), cudaMemcpyDeviceToDevice);
         }
+
+        cudaMemcpy(output_image_data, d_output_image_data, size_channels * sizeof(float), cudaMemcpyDeviceToHost);
+
+
+        cudaFree(d_gray_image);
+        cudaFree(d_histogram);
+        cudaFree(d_cdf);
+        cudaFree(d_input_image_data);
+        cudaFree(d_output_image_data);
 
         return output_image;
     }
