@@ -1,15 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(project)
+
 set(CMAKE_CXX_STANDARD 17)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
-
-set( CMAKE_CUDA_FLAGS "" CACHE STRING "" )
-
-if ( CMAKE_CUDA_FLAGS )
-	list(REMOVE_ITEM CMAKE_CUDA_FLAGS "--cudart static")
-endif()
-string(APPEND CMAKE_CUDA_FLAGS "--cudart shared")
 
 set (VECTORIZATION FALSE)
 
@@ -24,6 +18,14 @@ endif()
 # Autodetect CUDA architecture(s)
 ##############################################################
 
+set( CMAKE_CUDA_FLAGS "" CACHE STRING "" )
+
+if ( CMAKE_CUDA_FLAGS )
+	list(REMOVE_ITEM CMAKE_CUDA_FLAGS "--cudart static")
+endif()
+string(APPEND CMAKE_CUDA_FLAGS "--cudart shared")
+
+
 include(FindCUDA/select_compute_arch)
 CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)
 string(STRIP "${INSTALLED_GPU_CCS_1}" INSTALLED_GPU_CCS_2)
@@ -35,6 +37,12 @@ set_property(GLOBAL PROPERTY CUDA_ARCHITECTURES "${CUDA_ARCH_LIST}")
 cuda_select_nvcc_arch_flags(ARCH_FLAGS Auto)
 list(APPEND CUDA_NVCC_FLAGS ${ARCH_FLAGS})
 message("-- CUDA Architecture(s): " ${CMAKE_CUDA_ARCHITECTURES})
+
+###############
+# OPENMP
+###############
+
+find_package(OpenMP REQUIRED)
 
 ###############
 # libWB
@@ -50,12 +58,12 @@ include_directories(libwb)
 
 include_directories(include)
 
-add_executable(project
+add_executable(project_cuda
         src/main.cpp
         src/histogram_eq.cu
 )
 
-target_link_libraries(project wb)
+target_link_libraries(project_cuda wb)
 
 ##############################################################
 # Tests
