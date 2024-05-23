@@ -24,3 +24,12 @@ set(TEST_SOURCES
 
 add_executable(${TEST_TARGET} ${TEST_SOURCES})
 target_link_libraries(${TEST_TARGET} ${GTEST_BOTH_LIBRARIES} wb OpenMP::OpenMP_CXX)
+
+set(TEST_TARGET "histogram_eq_org_test")
+
+set(TEST_SOURCES
+        histogram_eq_org_test.cpp
+        ../src/histogram_eq_org.cpp)
+
+add_executable(${TEST_TARGET} ${TEST_SOURCES})
+target_link_libraries(${TEST_TARGET} ${GTEST_BOTH_LIBRARIES} wb)

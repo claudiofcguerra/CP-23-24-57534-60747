@@ -66,7 +66,13 @@ add_executable(project_omp
         src/histogram_eq_omp.cpp
 )
 
+add_executable(project_org
+        src/main.cpp
+        src/histogram_eq_org.cpp
+)
+
 target_link_libraries(project_cuda PUBLIC wb)
+target_link_libraries(project_org PUBLIC wb)
 target_link_libraries(project_omp PUBLIC wb OpenMP::OpenMP_CXX)
 
 ##############################################################

@@ -3,7 +3,6 @@
 //
 
 #include "histogram_eq.h"
-#include <omp.h>
 
 namespace cp
 {
@@ -14,28 +13,18 @@ namespace cp
         return static_cast<float>(x) / static_cast<float>(size);
     }
 
-    static void initialize_uchar_image_array(const float* input_image_data,
-                                             const std::shared_ptr<unsigned char[]>& uchar_image,
-                                             const int size_channels)
-    {
-#pragma omp parallel for
-        for (int i = 0; i < size_channels; i++)
-            uchar_image[i] = static_cast<unsigned char>(255 * input_image_data[i]);
-    }
-
 
     static unsigned char correct_color(const float cdf_val, const float cdf_min)
     {
         return static_cast<unsigned char>(255 * (cdf_val - cdf_min) / (1 - cdf_min));
     }
 
+
     static void greyscale_image_org(const int width, const int height,
                                     const std::shared_ptr<unsigned char[]>& uchar_image,
                                     const std::shared_ptr<unsigned char[]>& gray_image)
     {
-#pragma omp parallel for
         for (int i = 0; i < height; i++)
-#pragma omp parallel for firstprivate(i)
             for (int j = 0; j < width; j++)
             {
                 const auto idx = i * width + j;
@@ -50,20 +39,8 @@ namespace cp
                                      const int size)
     {
         std::fill_n(histogram, HISTOGRAM_LENGTH, 0);
-
-#pragma omp for reduction(+ : histogram)
         for (int i = 0; i < size; i++)
             histogram[gray_image[i]]++;
-    }
-
-    static void calculate_cdf_and_fin_min(int (&histogram)[256], float (&cdf)[256], const int size, float& cdf_min)
-    {
-        cdf[0] = prob(histogram[0], size);
-        cdf_min = cdf[0];
-        for (int i = 1; i < HISTOGRAM_LENGTH; i++)
-        {
-            cdf[i] = cdf[i - 1] + prob(histogram[i], size);
-        }
     }
 
     static void color_correct_and_output(float* output_image_data, const std::shared_ptr<unsigned char[]>& uchar_image,
@@ -72,9 +49,25 @@ namespace cp
         for (int i = 0; i < size_channels; i++)
             uchar_image[i] = correct_color(cdf[uchar_image[i]], cdf_min);
 
-#pragma parallel for
         for (int i = 0; i < size_channels; i++)
             output_image_data[i] = static_cast<float>(uchar_image[i]) / 255.0f;
+    }
+
+    static void calculate_cdf_and_fin_min(int (&histogram)[256], float (&cdf)[256], const int size, float& cdf_min)
+    {
+        cdf[0] = prob(histogram[0], size);
+        for (int i = 1; i < HISTOGRAM_LENGTH; i++)
+            cdf[i] = cdf[i - 1] + prob(histogram[i], size);
+
+        cdf_min = cdf[0];
+    }
+
+    static void initialize_uchar_image_array(const float* input_image_data,
+                                             const std::shared_ptr<unsigned char[]>& uchar_image,
+                                             const int size_channels)
+    {
+        for (int i = 0; i < size_channels; i++)
+            uchar_image[i] = static_cast<unsigned char>(255 * input_image_data[i]);
     }
 
     static void histogram_equalization(const int width, const int height,
