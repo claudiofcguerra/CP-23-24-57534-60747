@@ -3,7 +3,6 @@
 //
 
 #include "histogram_eq.h"
-#include <omp.h>
 
 namespace cp
 {
