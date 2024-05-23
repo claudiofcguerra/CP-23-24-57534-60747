@@ -51,7 +51,7 @@ namespace cp
 
         std::fill_n(histogram, HISTOGRAM_LENGTH, 0);
 
-
+#pragma omp for reduction(+ : histogram)
         for (int i = 0; i < size; i++)
             histogram[gray_image[i]]++;
 
