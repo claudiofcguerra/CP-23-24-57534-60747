@@ -21,6 +21,51 @@ namespace cp
     }
 
 
+    static void greyscale_image_org(const int width, const int height,
+                                    const std::shared_ptr<unsigned char[]>& uchar_image,
+                                    const std::shared_ptr<unsigned char[]>& gray_image)
+    {
+        for (int i = 0; i < height; i++)
+            for (int j = 0; j < width; j++)
+            {
+                const auto idx = i * width + j;
+                const auto r = uchar_image[3 * idx];
+                const auto g = uchar_image[3 * idx + 1];
+                const auto b = uchar_image[3 * idx + 2];
+                gray_image[idx] = static_cast<unsigned char>(0.21 * r + 0.71 * g + 0.07 * b);
+            }
+    }
+
+    static void create_histogram_org(const std::shared_ptr<unsigned char[]>& gray_image, int (&histogram)[256],
+                                     const int size)
+    {
+        std::fill_n(histogram, HISTOGRAM_LENGTH, 0);
+        for (int i = 0; i < size; i++)
+            histogram[gray_image[i]]++;
+    }
+
+    static void color_correct_and_output(float* output_image_data, const std::shared_ptr<unsigned char[]>& uchar_image,
+                                         float (&cdf)[256], const int size_channels, float cdf_min)
+    {
+        for (int i = 0; i < size_channels; i++)
+            uchar_image[i] = correct_color(cdf[uchar_image[i]], cdf_min);
+
+        for (int i = 0; i < size_channels; i++)
+            output_image_data[i] = static_cast<float>(uchar_image[i]) / 255.0f;
+    }
+
+    static void calculate_cdf_and_fin_min(int (&histogram)[256], float (&cdf)[256], const int size, float& cdf_min)
+    {
+        cdf[0] = prob(histogram[0], size);
+        for (int i = 1; i < HISTOGRAM_LENGTH; i++)
+            cdf[i] = cdf[i - 1] + prob(histogram[i], size);
+
+        cdf_min = cdf[0];
+        for (int i = 1; i < HISTOGRAM_LENGTH; i++)
+            cdf_min = std::min(cdf_min, cdf[i]);
+    }
+
+
     static void histogram_equalization_omp(const int width, const int height,
                                            const float* input_image_data,
                                            float* output_image_data,
@@ -87,33 +132,14 @@ namespace cp
         for (int i = 0; i < size_channels; i++)
             uchar_image[i] = static_cast<unsigned char>(255 * input_image_data[i]);
 
-        for (int i = 0; i < height; i++)
-            for (int j = 0; j < width; j++)
-            {
-                const auto idx = i * width + j;
-                const auto r = uchar_image[3 * idx];
-                const auto g = uchar_image[3 * idx + 1];
-                const auto b = uchar_image[3 * idx + 2];
-                gray_image[idx] = static_cast<unsigned char>(0.21 * r + 0.71 * g + 0.07 * b);
-            }
+        greyscale_image_org(width, height, uchar_image, gray_image);
 
-        std::fill_n(histogram, HISTOGRAM_LENGTH, 0);
-        for (int i = 0; i < size; i++)
-            histogram[gray_image[i]]++;
+        create_histogram_org(gray_image, histogram, size);
 
-        cdf[0] = prob(histogram[0], size);
-        for (int i = 1; i < HISTOGRAM_LENGTH; i++)
-            cdf[i] = cdf[i - 1] + prob(histogram[i], size);
+        float cdf_min;
+        calculate_cdf_and_fin_min(histogram, cdf, size, cdf_min);
 
-        auto cdf_min = cdf[0];
-        for (int i = 1; i < HISTOGRAM_LENGTH; i++)
-            cdf_min = std::min(cdf_min, cdf[i]);
-
-        for (int i = 0; i < size_channels; i++)
-            uchar_image[i] = correct_color(cdf[uchar_image[i]], cdf_min);
-
-        for (int i = 0; i < size_channels; i++)
-            output_image_data[i] = static_cast<float>(uchar_image[i]) / 255.0f;
+        color_correct_and_output(output_image_data, uchar_image, cdf, size_channels, cdf_min);
     }
 
     static void histogram_equalization(const int width, const int height,
