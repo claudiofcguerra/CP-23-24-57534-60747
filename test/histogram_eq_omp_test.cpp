@@ -19,7 +19,7 @@ TEST(HistogramEq, input01_omp)
         //        std::cout << "Iteration: " << i << std::endl;
         wbImage_t inputImage = wbImport(DATASET_FOLDER "input01.ppm");
         auto start = std::chrono::high_resolution_clock::now();
-        wbImage_t outputImage = iterative_histogram_equalization(inputImage, 4, func_type::OMP);
+        wbImage_t outputImage = iterative_histogram_equalization(inputImage, 4);
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         avg += int(duration.count());
@@ -38,7 +38,7 @@ TEST(HistogramEq, big_input_omp)
         //        std::cout << "Iteration: " << i << std::endl;
         wbImage_t inputImage = wbImport(DATASET_FOLDER "sample_5184×3456.ppm");
         auto start = std::chrono::high_resolution_clock::now();
-        wbImage_t outputImage = iterative_histogram_equalization(inputImage, 4, func_type::OMP);
+        wbImage_t outputImage = iterative_histogram_equalization(inputImage, 4);
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         avg += int(duration.count());

@@ -102,7 +102,7 @@ namespace cp
     }
 
 
-    wbImage_t iterative_histogram_equalization(const wbImage_t& input_image, const int iterations, const func_type type)
+    wbImage_t iterative_histogram_equalization(const wbImage_t& input_image, const int iterations)
     {
         // Input 1 2 5 4 9 7 0 1
         // Output: 1 3 8 12 21 28 28 29
