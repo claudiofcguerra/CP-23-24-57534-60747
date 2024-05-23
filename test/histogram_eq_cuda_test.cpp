@@ -8,6 +8,7 @@ using namespace cp;
 #define OUTPUT_FOLDER "../../dataset_output/"
 
 #define TEST_ITERATIONS 10
+#define BIG_INPUT_TEST_ITERATIONS 3
 
 
 // TEST(HistogramEq, input01_omp)
