@@ -37,6 +37,7 @@ namespace cp
         for (int i = 0; i < size_channels; i++)
             uchar_image[i] = static_cast<unsigned char>(255 * input_image_data[i]);
 
+        // GREY SCALE THE IMAGE
 #pragma omp parallel for
         for (int i = 0; i < height; i++)
 #pragma omp parallel for firstprivate(i)
@@ -51,7 +52,7 @@ namespace cp
 
         std::fill_n(histogram, HISTOGRAM_LENGTH, 0);
 
-
+        // CALCULATE HISTOGRAM FOR IMAGE
         for (int i = 0; i < size; i++)
             histogram[gray_image[i]]++;
 
@@ -62,6 +63,7 @@ namespace cp
             cdf[i] = cdf[i - 1] + prob(histogram[i], size);
         }
 
+        // COLOR CORRECT THE IMAGE
         for (int i = 0; i < size_channels; i++)
         {
             uchar_image[i] = correct_color(cdf[uchar_image[i]], cdf_min);
