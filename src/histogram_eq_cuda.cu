@@ -5,6 +5,17 @@ namespace cp
 {
     constexpr auto HISTOGRAM_LENGTH = 256;
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+    // https://stackoverflow.com/questions/14038589/what-is-the-canonical-way-to-check-for-errors-using-the-cuda-runtime-api
+    inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true)
+    {
+        if (code != cudaSuccess)
+        {
+            fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+            if (abort) exit(code);
+        }
+    }
+
     static float prob(const int x, const int size)
     {
         return static_cast<float>(x) / static_cast<float>(size);
@@ -41,13 +52,15 @@ namespace cp
             lower_level, upper_level, num_samples);
 
         // Allocate temporary storage
-        cudaMalloc(&d_temp_storage, temp_storage_bytes);
+        gpuErrchk(cudaMalloc(&d_temp_storage, temp_storage_bytes));
 
         // Compute histograms
         cub::DeviceHistogram::HistogramEven(
             d_temp_storage, temp_storage_bytes,
             d_samples, d_histogram, num_levels,
             lower_level, upper_level, num_samples);
+
+        gpuErrchk(cudaFree(d_temp_storage))
     }
 
     __global__ void correct_color_kernel(const unsigned char* input_image_data, float* output_image_data,
@@ -107,7 +120,7 @@ namespace cp
 
         compute_histogram(d_histogram, d_gray_image, size);
 
-        cudaMemcpy(histogram, d_histogram, HISTOGRAM_LENGTH * sizeof(int), cudaMemcpyDeviceToHost);
+        gpuErrchk(cudaMemcpy(histogram, d_histogram, HISTOGRAM_LENGTH * sizeof(int), cudaMemcpyDeviceToHost));
 
         float cdf_min;
         calculate_cdf_and_fin_min(histogram, cdf, size, cdf_min);
@@ -115,20 +128,23 @@ namespace cp
                                                           size_channels);
     }
 
-    void cuda_prepare_memory(const int size, const int size_channels)
+    void cuda_prepare_memory(const int size, const int size_channels, const float* input_image_data)
     {
-        cudaMalloc(reinterpret_cast<void**>(&d_gray_image), size * sizeof(unsigned char));
-        cudaMalloc(reinterpret_cast<void**>(&d_histogram), HISTOGRAM_LENGTH * sizeof(int));
-        cudaMalloc(reinterpret_cast<void**>(&d_input_image_data), size_channels * sizeof(float));
-        cudaMalloc(reinterpret_cast<void**>(&d_output_image_data), size_channels * sizeof(float));
+        gpuErrchk(cudaMalloc(reinterpret_cast<void**>(&d_gray_image), size * sizeof(unsigned char)));
+        gpuErrchk(cudaMalloc(reinterpret_cast<void**>(&d_histogram), HISTOGRAM_LENGTH * sizeof(int)));
+        gpuErrchk(cudaMalloc(reinterpret_cast<void**>(&d_input_image_data), size_channels * sizeof(float)));
+        gpuErrchk(cudaMalloc(reinterpret_cast<void**>(&d_output_image_data), size_channels * sizeof(float)));
+
+        gpuErrchk(
+            cudaMemcpy(d_input_image_data, input_image_data, size_channels * sizeof(float), cudaMemcpyHostToDevice));
     }
 
     void cuda_free_memory()
     {
-        cudaFree(d_gray_image);
-        cudaFree(d_histogram);
-        cudaFree(d_input_image_data);
-        cudaFree(d_output_image_data);
+        gpuErrchk(cudaFree(d_gray_image));
+        gpuErrchk(cudaFree(d_histogram));
+        gpuErrchk(cudaFree(d_input_image_data));
+        gpuErrchk(cudaFree(d_output_image_data));
     }
 
     wbImage_t iterative_histogram_equalization(const wbImage_t& input_image, const int iterations)
@@ -149,9 +165,8 @@ namespace cp
         int histogram[HISTOGRAM_LENGTH];
         float cdf[HISTOGRAM_LENGTH];
 
-        cuda_prepare_memory(size, size_channels);
-        cudaMemcpy(d_input_image_data, input_image_data, size_channels * sizeof(float), cudaMemcpyHostToDevice);
-        printf("Device Variable Copying:\t%s\n", cudaGetErrorString(cudaGetLastError()));
+        cuda_prepare_memory(size, size_channels, input_image_data);
+
 
         for (int i = 0; i < iterations; i++)
         {
@@ -163,7 +178,8 @@ namespace cp
                        cudaMemcpyDeviceToDevice);
         }
 
-        cudaMemcpy(output_image_data, d_output_image_data, size_channels * sizeof(float), cudaMemcpyDeviceToHost);
+        gpuErrchk(
+            cudaMemcpy(output_image_data, d_output_image_data, size_channels * sizeof(float), cudaMemcpyDeviceToHost));
 
 
         cuda_free_memory();
