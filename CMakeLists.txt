@@ -52,7 +52,7 @@ add_executable(project_org
 
 add_executable(project_cuda
         src/main.cpp
-        src/histogram_eq_cuda_1.cu
+        src/histogram_eq_cuda.cu
 )
 
 target_link_libraries(project_org PRIVATE wb)
