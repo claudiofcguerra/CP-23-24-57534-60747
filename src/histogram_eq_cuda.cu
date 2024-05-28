@@ -118,6 +118,7 @@ namespace cp
 
         greyscale_image_kernel<<<(size + 255) / 256, 256>>>(d_input_image_data, d_gray_image, size);
 
+        // Canºt pass d_histogram and d_gray_image to a function that runs on host.
         compute_histogram(d_histogram, d_gray_image, size);
 
         gpuErrchk(cudaMemcpy(histogram, d_histogram, HISTOGRAM_LENGTH * sizeof(int), cudaMemcpyDeviceToHost));
