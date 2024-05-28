@@ -1,63 +1,83 @@
+#include <filesystem>
+#include "gtest/gtest.h"
 #include "histogram_eq.h"
-#include <opencv2/opencv.hpp>
-#include <iostream>
-#include <cstdlib>
 
-#include <cuda_runtime.h>
-#include <cub/cub.cuh>
+using namespace cp;
 
-int main(int argc, char **argv) {
-    if (argc != 4) {
-        std::cout << "usage: " << argv[0] << " input_image.ppm n_iterations output_image.ppm\n";
-        return 1;
-    }
+#define DATASET_FOLDER "../../dataset/"
+#define OUTPUT_FOLDER "../../dataset_output/"
 
+#define TEST_ITERATIONS 10
+#define BIG_INPUT_TEST_ITERATIONS 3
 
-    cv::Mat input_image = cv::imread(argv[1], cv::IMREAD_COLOR);
-    if (input_image.empty()) {
-        std::cerr << "Error: Cannot load image " << argv[1] << std::endl;
-        return 1;
-    }
+TEST(HistogramEq, input01_omp)
+{
+int avg = 0;
+for (int i = 0; i < TEST_ITERATIONS; i++)
+{
+wbImage_t inputImage = wbImport(DATASET_FOLDER "input01.ppm");
+auto start = std::chrono::high_resolution_clock::now();
+wbImage_t outputImage = iterative_histogram_equalization(inputImage, 4);
+auto end = std::chrono::high_resolution_clock::now();
+auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+avg += int(duration.count());
+if (i == TEST_ITERATIONS - 1) { wbExport(OUTPUT_FOLDER "output01_omp.ppm", outputImage); }
+}
+avg /= TEST_ITERATIONS;
+std::cout << "Execution time for " << TEST_ITERATIONS << " iterations was: " << avg <<
+" microseconds" << std::endl;
+}
 
-    int n_iterations = std::stoi(argv[2]);
+TEST(HistogramEq, input01_org)
+{
+int avg = 0;
+for (int i = 0; i < TEST_ITERATIONS; i++)
+{
+wbImage_t inputImage = wbImport(DATASET_FOLDER "input01.ppm");
+auto start = std::chrono::high_resolution_clock::now();
+wbImage_t outputImage = iterative_histogram_equalization(inputImage, 4);
+auto end = std::chrono::high_resolution_clock::now();
+auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+avg += int(duration.count());
+if (i == TEST_ITERATIONS - 1) { wbExport(OUTPUT_FOLDER "output01_org.ppm", outputImage); }
+}
+avg /= TEST_ITERATIONS;
+std::cout << "Execution time for " << TEST_ITERATIONS << " iterations was: " << avg <<
+" microseconds" << std::endl;
+}
 
+TEST(HistogramEq, big_input_omp)
+{
+int avg = 0;
+for (int i = 0; i < TEST_ITERATIONS; i++)
+{
+wbImage_t inputImage = wbImport(DATASET_FOLDER "sample_5184x3456.ppm");
+auto start = std::chrono::high_resolution_clock::now();
+wbImage_t outputImage = iterative_histogram_equalization(inputImage, 4);
+auto end = std::chrono::high_resolution_clock::now();
+auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+avg += int(duration.count());
+if (i == TEST_ITERATIONS - 1) { wbExport(OUTPUT_FOLDER "big_output_omp.ppm", outputImage); }
+}
+avg /= TEST_ITERATIONS;
+std::cout << "Execution time for " << TEST_ITERATIONS << " iterations was: " << avg <<
+" microseconds" << std::endl;
+}
 
-    int width = input_image.cols;
-    int height = input_image.rows;
-    int channels = input_image.channels();
-    wbImage_t wb_input_image = wbImage_new(width, height, channels);
-    float *input_data = wbImage_getData(wb_input_image);
-
-
-    for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-            for (int k = 0; k < channels; k++) {
-                input_data[(i * width + j) * channels + k] = input_image.at<cv::Vec3b>(i, j)[k] / 255.0f;
-            }
-        }
-    }
-
-
-    wbImage_t wb_output_image = cp::iterative_histogram_equalization(wb_input_image, n_iterations);
-
-    // Converter de volta para cv::Mat
-    cv::Mat output_image(height, width, input_image.type());
-    float *output_data = wbImage_getData(wb_output_image);
-    for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-            for (int k = 0; k < channels; k++) {
-                output_image.at<cv::Vec3b>(i, j)[k] = static_cast<unsigned char>(output_data[(i * width + j) * channels + k] * 255.0f);
-            }
-        }
-    }
-
-
-    cv::imwrite(argv[3], output_image);
-
-
-    wbImage_delete(wb_input_image);
-    wbImage_delete(wb_output_image);
-
-    std::cout << "Histogram equalization completed successfully." << std::endl;
-    return 0;
+TEST(HistogramEq, big_input_org)
+{
+int avg = 0;
+for (int i = 0; i < TEST_ITERATIONS; i++)
+{
+wbImage_t inputImage = wbImport(DATASET_FOLDER "sample_5184x3456.ppm");
+auto start = std::chrono::high_resolution_clock::now();
+wbImage_t outputImage = iterative_histogram_equalization(inputImage, 4);
+auto end = std::chrono::high_resolution_clock::now();
+auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+avg += int(duration.count());
+if (i == TEST_ITERATIONS - 1) { wbExport(OUTPUT_FOLDER "big_output_org.ppm", outputImage); }
+}
+avg /= TEST_ITERATIONS;
+std::cout << "Execution time for " << TEST_ITERATIONS << " iterations was: " << avg <<
+" microseconds" << std::endl;
 }

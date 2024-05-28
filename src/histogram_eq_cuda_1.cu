@@ -5,7 +5,6 @@ namespace cp
 {
     constexpr auto HISTOGRAM_LENGTH = 256;
 
-
     __global__ void histogram_kernel(const unsigned char* gray_image, int size, int* histogram)
     {
         int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -14,7 +13,6 @@ namespace cp
             atomicAdd(&histogram[gray_image[tid]], 1);
         }
     }
-
 
     void compute_cdf(const int* histogram, float* cdf, int size)
     {
@@ -27,11 +25,12 @@ namespace cp
         cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, histogram, cdf, HISTOGRAM_LENGTH);
         cudaFree(d_temp_storage);
 
-
+/*
         thrust::transform(thrust::device, cdf, cdf + HISTOGRAM_LENGTH, cdf, [size] __device__ (float x)
         {
             return x / size;
         });
+        */
     }
 
     __global__ void equalization_kernel(const unsigned char* input_image_data, float* output_image_data,
@@ -55,7 +54,7 @@ namespace cp
         }
     }
 
-    wbImage_t iterative_histogram_equalization(wbImage_t& input_image, int iterations)
+    wbImage_t iterative_histogram_equalization(const wbImage_t& input_image, const int iterations)
     {
         const auto width = wbImage_getWidth(input_image);
         const auto height = wbImage_getHeight(input_image);
