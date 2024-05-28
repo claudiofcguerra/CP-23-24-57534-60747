@@ -46,19 +46,19 @@ namespace cp
         // Determine temporary device storage requirements
         void* d_temp_storage = nullptr;
         size_t temp_storage_bytes = 0;
-        cub::DeviceHistogram::HistogramEven(
+        gpuErrchk(cub::DeviceHistogram::HistogramEven(
             d_temp_storage, temp_storage_bytes,
             d_samples, d_histogram, num_levels,
-            lower_level, upper_level, num_samples);
+            lower_level, upper_level, num_samples));
 
         // Allocate temporary storage
         gpuErrchk(cudaMalloc(&d_temp_storage, temp_storage_bytes));
 
         // Compute histograms
-        cub::DeviceHistogram::HistogramEven(
+        gpuErrchk(cub::DeviceHistogram::HistogramEven(
             d_temp_storage, temp_storage_bytes,
             d_samples, d_histogram, num_levels,
-            lower_level, upper_level, num_samples);
+            lower_level, upper_level, num_samples));
 
         gpuErrchk(cudaFree(d_temp_storage))
     }
