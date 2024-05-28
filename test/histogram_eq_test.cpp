@@ -27,7 +27,7 @@ TEST(HistogramEq, input01_omp)
         if (i == TEST_ITERATIONS - 1) { wbExport(outputPath.c_str(), outputImage); }
     }
     avg /= TEST_ITERATIONS;
-    std::cout << "Execution time for " << TEST_ITERATIONS << " iterations in " << TEST_NAME << "Function was: " << avg
+    std::cout << "Execution time for " << TEST_ITERATIONS << " iterations in " << TEST_NAME << " Function was: " << avg
         <<
         " microseconds" << std::endl;
 }
@@ -49,7 +49,7 @@ TEST(HistogramEq, big_input_omp)
     }
     avg /= BIG_INPUT_TEST_ITERATIONS;
     std::cout << "Execution time for " << BIG_INPUT_TEST_ITERATIONS << " iterations in " << TEST_NAME <<
-        "Function was: "
+        " Function was: "
         << avg <<
         " microseconds" << std::endl;
 }
