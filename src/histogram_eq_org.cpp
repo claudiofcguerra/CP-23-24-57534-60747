@@ -53,7 +53,7 @@ namespace cp
             output_image_data[i] = static_cast<float>(uchar_image[i]) / 255.0f;
     }
 
-    static void calculate_cdf_and_fin_min(int (&histogram)[256], float (&cdf)[256], const int size, float& cdf_min)
+    static void calculate_cdf_and_fin_min(const int (&histogram)[256], float (&cdf)[256], const int size, float& cdf_min)
     {
         cdf[0] = prob(histogram[0], size);
         for (int i = 1; i < HISTOGRAM_LENGTH; i++)
