@@ -11,7 +11,7 @@ using namespace cp;
 #define BIG_INPUT_TEST_ITERATIONS 1
 
 
-TEST(HistogramEq, input01_omp)
+TEST(HistogramEq, input01)
 {
     int avg = 0;
     std::string outputPath = std::string(OUTPUT_FOLDER) + "output01_" + TEST_NAME + ".ppm";
@@ -32,7 +32,7 @@ TEST(HistogramEq, input01_omp)
         " microseconds" << std::endl;
 }
 
-TEST(HistogramEq, big_input_omp)
+TEST(HistogramEq, big_input)
 {
     int avg = 0;
     std::string outputPath = std::string(OUTPUT_FOLDER) + "big_output_" + TEST_NAME + ".ppm";
