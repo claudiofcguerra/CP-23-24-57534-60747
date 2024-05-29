@@ -19,7 +19,8 @@ namespace cp
         }
     }
 
-
+    // Allocate device memory for the histogram
+    int* d_histogram;
     unsigned char *d_gray_image, *d_uchar_image;
     float* d_input_image_data;
 
@@ -29,12 +30,16 @@ namespace cp
         gpuErrchk(cudaMalloc(reinterpret_cast<void**>(&d_input_image_data), size_channels * sizeof(float)));
         gpuErrchk(cudaMalloc(reinterpret_cast<void**>(&d_uchar_image), size_channels * sizeof(unsigned char)));
 
+        gpuErrchk(cudaMalloc(&d_histogram, HISTOGRAM_LENGTH * sizeof(int)));
+        gpuErrchk(cudaMemset(d_histogram, 0, HISTOGRAM_LENGTH * sizeof(int))); // Initialize histogram to zero
+
         gpuErrchk(
             cudaMemcpy(d_input_image_data, input_image_data, size_channels * sizeof(float), cudaMemcpyHostToDevice));
     }
 
     void cuda_free_memory()
     {
+        gpuErrchk(cudaFree(d_histogram));
         gpuErrchk(cudaFree(d_gray_image));
         gpuErrchk(cudaFree(d_uchar_image));
     }
@@ -90,39 +95,33 @@ namespace cp
         cudaDeviceSynchronize();
     }
 
-    void create_histogram_org(const unsigned char* d_gray_image, int (&histogram)[HISTOGRAM_LENGTH], const int size)
+    void create_histogram_cub(const unsigned char* d_gray_image, int (&histogram)[HISTOGRAM_LENGTH], const int size)
     {
-        // Allocate device memory for the histogram
-        int* d_histogram;
-        cudaMalloc(&d_histogram, HISTOGRAM_LENGTH * sizeof(int));
-        cudaMemset(d_histogram, 0, HISTOGRAM_LENGTH * sizeof(int)); // Initialize histogram to zero
-
         // Determine temporary device storage requirements for CUB
-        void* d_temp_storage = nullptr;
+        int num_samples = size;
+        float lower_level = 0.0f;
+        float upper_level = 256.0f;
         size_t temp_storage_bytes = 0;
+        void* d_temp_storage = nullptr;
+        int num_levels = HISTOGRAM_LENGTH + 1;
+        auto d_samples = d_gray_image;
+
         cub::DeviceHistogram::HistogramEven(
             d_temp_storage, temp_storage_bytes,
-            d_gray_image, d_histogram,
-            HISTOGRAM_LENGTH + 1, 0.0f, 256.0f,
-            size
+            d_samples, d_histogram,
+            num_levels, lower_level, upper_level,
+            num_samples
         );
-
         // Allocate temporary storage
         cudaMalloc(&d_temp_storage, temp_storage_bytes);
-
         // Compute the histogram
         cub::DeviceHistogram::HistogramEven(
             d_temp_storage, temp_storage_bytes,
-            d_gray_image, d_histogram,
-            HISTOGRAM_LENGTH + 1, 0.0f, 256.0f,
-            size
+            d_samples, d_histogram,
+            num_levels, lower_level, upper_level,
+            num_samples
         );
-
-        // Copy the histogram back to the host
-        cudaMemcpy(histogram, d_histogram, HISTOGRAM_LENGTH * sizeof(int), cudaMemcpyDeviceToHost);
-
-        // Free device memory
-        cudaFree(d_histogram);
+        // Free temporary storage
         cudaFree(d_temp_storage);
     }
 
@@ -173,7 +172,10 @@ namespace cp
         gpuErrchk(
             cudaMemcpy(unchar_image, d_uchar_image, size_channels * sizeof(unsigned char), cudaMemcpyDeviceToHost));
 
-        create_histogram_org(d_gray_image, histogram, size);
+        create_histogram_cub(d_gray_image, histogram, size);
+
+        // Copy the histogram back to the host
+        cudaMemcpy(histogram, d_histogram, HISTOGRAM_LENGTH * sizeof(int), cudaMemcpyDeviceToHost);
 
         float cdf_min;
         calculate_cdf_and_fin_min(histogram, cdf, size, cdf_min);
