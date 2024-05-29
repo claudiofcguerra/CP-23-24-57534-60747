@@ -19,15 +19,39 @@ namespace cp
         }
     }
 
+
+    unsigned char *d_gray_image, *d_uchar_image;
+    float* d_input_image_data;
+
+    void cuda_prepare_memory(const int size, const int size_channels, const float* input_image_data)
+    {
+        gpuErrchk(cudaMalloc(reinterpret_cast<void**>(&d_gray_image), size * sizeof(unsigned char)));
+        gpuErrchk(cudaMalloc(reinterpret_cast<void**>(&d_input_image_data), size_channels * sizeof(float)));
+        gpuErrchk(cudaMalloc(reinterpret_cast<void**>(&d_uchar_image), size_channels * sizeof(unsigned char)));
+
+        gpuErrchk(
+            cudaMemcpy(d_input_image_data, input_image_data, size_channels * sizeof(float), cudaMemcpyHostToDevice));
+    }
+
+    void cuda_free_memory()
+    {
+        gpuErrchk(cudaFree(d_gray_image));
+        gpuErrchk(cudaFree(d_uchar_image));
+    }
+
+
     static float prob(const int x, const int size)
     {
         return static_cast<float>(x) / static_cast<float>(size);
     }
 
-
-    static unsigned char correct_color(const float cdf_val, const float cdf_min)
+    __global__ void initialize_uchar_image_array_kernel(const float* d_input_image_data,
+                                                        unsigned char* d_uchar_image,
+                                                        const int size_channels)
     {
-        return static_cast<unsigned char>(255 * (cdf_val - cdf_min) / (1 - cdf_min));
+        const int tid = threadIdx.x + blockDim.x * blockIdx.x;
+        if (tid < size_channels)
+            d_uchar_image[tid] = static_cast<unsigned char>(255 * d_input_image_data[tid]);
     }
 
     static void initialize_uchar_image_array(const float* input_image_data,
@@ -39,7 +63,7 @@ namespace cp
     }
 
     static void greyscale_image_org(const int width, const int height,
-                                    const std::shared_ptr<unsigned char[]>& uchar_image,
+                                    unsigned char* uchar_image,
                                     const std::shared_ptr<unsigned char[]>& gray_image)
     {
         for (int i = 0; i < height; i++)
@@ -72,7 +96,13 @@ namespace cp
         }
     }
 
-    static void color_correct_and_output(float* output_image_data, const std::shared_ptr<unsigned char[]>& uchar_image,
+
+    static unsigned char correct_color(const float cdf_val, const float cdf_min)
+    {
+        return static_cast<unsigned char>(255 * (cdf_val - cdf_min) / (1 - cdf_min));
+    }
+
+    static void color_correct_and_output(float* output_image_data, unsigned char* uchar_image,
                                          float (&cdf)[256], const int size_channels, float cdf_min)
     {
         for (int i = 0; i < size_channels; i++)
@@ -93,32 +123,23 @@ namespace cp
         constexpr auto channels = 3;
         const auto size = width * height;
         const auto size_channels = size * channels;
+        auto* unchar_image = new unsigned char[size_channels];
 
-        initialize_uchar_image_array(input_image_data, uchar_image, size_channels);
+        // initialize_uchar_image_array(input_image_data, uchar_image, size_channels);
+        initialize_uchar_image_array_kernel<<<(size + 255) / 256, 256>>>(
+            d_input_image_data, d_uchar_image, size_channels);
 
-        greyscale_image_org(width, height, uchar_image, gray_image);
+        gpuErrchk(
+            cudaMemcpy(unchar_image, d_uchar_image, size_channels * sizeof(unsigned char), cudaMemcpyDeviceToHost));
+
+        greyscale_image_org(width, height, unchar_image, gray_image);
 
         create_histogram_org(gray_image, histogram, size);
 
         float cdf_min;
         calculate_cdf_and_fin_min(histogram, cdf, size, cdf_min);
 
-        color_correct_and_output(output_image_data, uchar_image, cdf, size_channels, cdf_min);
-    }
-
-    unsigned char* d_gray_image;
-
-    void cuda_prepare_memory(const int size, const int size_channels, const float* input_image_data)
-    {
-        gpuErrchk(cudaMalloc(reinterpret_cast<void**>(&d_gray_image), size * sizeof(unsigned char)));
-
-        gpuErrchk(
-            cudaMemcpy(d_input_image_data, input_image_data, size_channels * sizeof(float), cudaMemcpyHostToDevice));
-    }
-
-    void cuda_free_memory()
-    {
-        gpuErrchk(cudaFree(d_gray_image));
+        color_correct_and_output(output_image_data, unchar_image, cdf, size_channels, cdf_min);
     }
 
 
@@ -143,6 +164,8 @@ namespace cp
         int histogram[HISTOGRAM_LENGTH];
         float cdf[HISTOGRAM_LENGTH];
 
+        cuda_prepare_memory(size, size_channels, input_image_data);
+
         for (int i = 0; i < iterations; i++)
         {
             histogram_equalization(width, height,
@@ -152,6 +175,8 @@ namespace cp
 
             input_image_data = output_image_data;
         }
+
+        cuda_free_memory();
 
         return output_image;
     }
