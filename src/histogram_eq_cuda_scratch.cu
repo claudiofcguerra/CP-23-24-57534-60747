@@ -141,10 +141,7 @@ namespace cp
         const auto size_channels = size * channels;
         auto* unchar_image = new unsigned char[size_channels];
 
-        // initialize_uchar_image_array(input_image_data, uchar_image, size_channels);
         initialize_uchar_image_array(d_input_image_data, d_uchar_image, size_channels);
-        // initialize_uchar_image_array_kernel<<<(size + 255) / 256, 256>>>(
-        //     d_input_image_data, d_uchar_image, size_channels);
 
         gpuErrchk(
             cudaMemcpy(unchar_image, d_uchar_image, size_channels * sizeof(unsigned char), cudaMemcpyDeviceToHost));
@@ -189,8 +186,9 @@ namespace cp
                                    input_image_data, output_image_data,
                                    uchar_image, gray_image,
                                    histogram, cdf);
-
-            input_image_data = output_image_data;
+            gpuErrchk(
+                cudaMemcpy(d_input_image_data, output_image_data, size_channels * sizeof(float), cudaMemcpyHostToDevice
+                ));
         }
 
         cuda_free_memory();
