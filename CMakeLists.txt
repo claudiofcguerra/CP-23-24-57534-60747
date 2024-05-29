@@ -15,6 +15,8 @@ include_directories(libwb)
 ##############################################################
 # Autodetect CUDA architecture(s)
 ##############################################################
+#source before we forget
+#https://stackoverflow.com/questions/68223398/how-can-i-get-cmake-to-automatically-detect-the-value-for-cuda-architectures
 include(FindCUDA/select_compute_arch)
 CUDA_DETECT_INSTALLED_GPUS(INSTALLED_GPU_CCS_1)
 string(STRIP "${INSTALLED_GPU_CCS_1}" INSTALLED_GPU_CCS_2)
