@@ -8,6 +8,16 @@ add_executable(${TEST_TARGET} ${TEST_SOURCES})
 target_link_libraries(${TEST_TARGET} ${GTEST_BOTH_LIBRARIES} wb)
 target_compile_definitions(${TEST_TARGET} PRIVATE TEST_NAME="CUDA")
 
+set(TEST_TARGET "histogram_eq_cuda_refactor_test")
+
+set(TEST_SOURCES
+        histogram_eq_test.cpp
+        ../src/histogram_eq_cuda_scratch.cu)
+
+add_executable(${TEST_TARGET} ${TEST_SOURCES})
+target_link_libraries(${TEST_TARGET} ${GTEST_BOTH_LIBRARIES} wb)
+target_compile_definitions(${TEST_TARGET} PRIVATE TEST_NAME="CUDA")
+
 
 set(TEST_TARGET "histogram_eq_omp_test")
 
