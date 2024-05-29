@@ -77,6 +77,25 @@ namespace cp
         }
     }
 
+    __device__ unsigned char correct_color(const float cdf_val, const float cdf_min)
+    {
+        return static_cast<unsigned char>(255 * (cdf_val - cdf_min) / (1 - cdf_min));
+    }
+
+    // CUDA kernel to perform color correction and output
+    __global__ void color_correct_and_output_kernel(float* output_image_data, unsigned char* uchar_image,
+                                                    const float* cdf, int size_channels, float cdf_min)
+    {
+        int idx = blockIdx.x * blockDim.x + threadIdx.x;
+        if (idx < size_channels)
+        {
+            // Color correction
+            uchar_image[idx] = correct_color(cdf[uchar_image[idx]], cdf_min);
+            // Output conversion
+            output_image_data[idx] = static_cast<float>(uchar_image[idx]) / 255.0f;
+        }
+    }
+
     void initialize_uchar_image_array(const float* d_input_image_data, unsigned char* d_uchar_image, int size_channels)
     {
         int threadsPerBlock = 256;
@@ -95,6 +114,20 @@ namespace cp
         int blocksPerGrid = (num_pixels + threadsPerBlock - 1) / threadsPerBlock;
 
         greyscale_image_org_kernel<<<blocksPerGrid, threadsPerBlock>>>(width, height, d_uchar_image, d_gray_image);
+        cudaDeviceSynchronize();
+    }
+
+
+    // Host function to call the CUDA kernel
+    void color_correct_and_output(float* d_output_image_data, unsigned char* d_uchar_image, const float* cdf,
+                                  int size_channels, float cdf_min)
+    {
+        int threadsPerBlock = 256;
+        int blocksPerGrid = (size_channels + threadsPerBlock - 1) / threadsPerBlock;
+
+        color_correct_and_output_kernel<<<blocksPerGrid, threadsPerBlock>>>(
+            d_output_image_data, d_uchar_image, cdf, size_channels, cdf_min);
+
         cudaDeviceSynchronize();
     }
 
@@ -139,22 +172,6 @@ namespace cp
         }
     }
 
-
-    static unsigned char correct_color(const float cdf_val, const float cdf_min)
-    {
-        return static_cast<unsigned char>(255 * (cdf_val - cdf_min) / (1 - cdf_min));
-    }
-
-    static void color_correct_and_output(float* output_image_data, unsigned char* uchar_image,
-                                         float (&cdf)[256], const int size_channels, float cdf_min)
-    {
-        for (int i = 0; i < size_channels; i++)
-            uchar_image[i] = correct_color(cdf[uchar_image[i]], cdf_min);
-
-        for (int i = 0; i < size_channels; i++)
-            output_image_data[i] = static_cast<float>(uchar_image[i]) / 255.0f;
-    }
-
     static void histogram_equalization(const int width, const int height,
                                        const float* input_image_data,
                                        float* output_image_data,
@@ -166,7 +183,6 @@ namespace cp
         constexpr auto channels = 3;
         const auto size = width * height;
         const auto size_channels = size * channels;
-        auto* unchar_image = new unsigned char[size_channels];
 
         initialize_uchar_image_array(d_input_image_data, d_uchar_image, size_channels);
 
@@ -180,10 +196,7 @@ namespace cp
         float cdf_min;
         calculate_cdf_and_fin_min(histogram, cdf, size, cdf_min);
 
-        gpuErrchk(
-            cudaMemcpy(unchar_image, d_uchar_image, size_channels * sizeof(unsigned char), cudaMemcpyDeviceToHost));
-
-        color_correct_and_output(output_image_data, unchar_image, cdf, size_channels, cdf_min);
+        color_correct_and_output(d_output_image_data, d_uchar_image, cdf, size_channels, cdf_min);
     }
 
 
@@ -217,9 +230,15 @@ namespace cp
                                    uchar_image, gray_image,
                                    histogram, cdf);
             gpuErrchk(
-                cudaMemcpy(d_input_image_data, output_image_data, size_channels * sizeof(float), cudaMemcpyHostToDevice
+                cudaMemcpy(d_input_image_data, d_output_image_data, size_channels * sizeof(float),
+                    cudaMemcpyHostToDevice
                 ));
         }
+
+        gpuErrchk(
+            cudaMemcpy(output_image_data, d_output_image_data, size_channels * sizeof(float),
+                cudaMemcpyHostToDevice
+            ));
 
         cuda_free_memory();
 
