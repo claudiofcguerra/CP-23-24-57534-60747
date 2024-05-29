@@ -45,7 +45,6 @@ namespace cp
         return static_cast<float>(x) / static_cast<float>(size);
     }
 
-    // CUDA kernel to initialize uchar image array
     __global__ void initialize_uchar_image_array_kernel(const float* input_image_data, unsigned char* uchar_image,
                                                         int size_channels)
     {
@@ -56,44 +55,42 @@ namespace cp
         }
     }
 
+    __global__ void greyscale_image_org_kernel(const int width, const int height, const unsigned char* uchar_image,
+                                               unsigned char* gray_image)
+    {
+        int idx = blockIdx.x * blockDim.x + threadIdx.x;
+        int num_pixels = width * height;
+        if (idx < num_pixels)
+        {
+            const auto r = uchar_image[3 * idx];
+            const auto g = uchar_image[3 * idx + 1];
+            const auto b = uchar_image[3 * idx + 2];
+            gray_image[idx] = static_cast<unsigned char>(0.21 * r + 0.71 * g + 0.07 * b);
+        }
+    }
+
     void initialize_uchar_image_array(const float* d_input_image_data, unsigned char* d_uchar_image, int size_channels)
     {
-        // Define the number of threads per block and the number of blocks
         int threadsPerBlock = 256;
         int blocksPerGrid = (size_channels + threadsPerBlock - 1) / threadsPerBlock;
 
-        // Launch the kernel
         initialize_uchar_image_array_kernel<<<blocksPerGrid, threadsPerBlock>>>(
             d_input_image_data, d_uchar_image, size_channels);
-
-        // Synchronize the device
         cudaDeviceSynchronize();
     }
 
-    static void initialize_uchar_image_array(const float* input_image_data,
-                                             const std::shared_ptr<unsigned char[]>& uchar_image,
-                                             const int size_channels)
+    void greyscale_image(const int width, const int height, const unsigned char* d_uchar_image,
+                         unsigned char* d_gray_image)
     {
-        for (int i = 0; i < size_channels; i++)
-            uchar_image[i] = static_cast<unsigned char>(255 * input_image_data[i]);
+        int num_pixels = width * height;
+        int threadsPerBlock = 256;
+        int blocksPerGrid = (num_pixels + threadsPerBlock - 1) / threadsPerBlock;
+
+        greyscale_image_org_kernel<<<blocksPerGrid, threadsPerBlock>>>(width, height, d_uchar_image, d_gray_image);
+        cudaDeviceSynchronize();
     }
 
-    static void greyscale_image_org(const int width, const int height,
-                                    unsigned char* uchar_image,
-                                    const std::shared_ptr<unsigned char[]>& gray_image)
-    {
-        for (int i = 0; i < height; i++)
-            for (int j = 0; j < width; j++)
-            {
-                const auto idx = i * width + j;
-                const auto r = uchar_image[3 * idx];
-                const auto g = uchar_image[3 * idx + 1];
-                const auto b = uchar_image[3 * idx + 2];
-                gray_image[idx] = static_cast<unsigned char>(0.21 * r + 0.71 * g + 0.07 * b);
-            }
-    }
-
-    static void create_histogram_org(const std::shared_ptr<unsigned char[]>& gray_image, int (&histogram)[256],
+    static void create_histogram_org(const unsigned char* gray_image, int (&histogram)[256],
                                      const int size)
     {
         std::fill_n(histogram, HISTOGRAM_LENGTH, 0);
@@ -140,15 +137,19 @@ namespace cp
         const auto size = width * height;
         const auto size_channels = size * channels;
         auto* unchar_image = new unsigned char[size_channels];
+        auto* gray_imagem = new unsigned char[size_channels];
 
         initialize_uchar_image_array(d_input_image_data, d_uchar_image, size_channels);
+
+        greyscale_image(width, height, d_uchar_image, d_gray_image);
 
         gpuErrchk(
             cudaMemcpy(unchar_image, d_uchar_image, size_channels * sizeof(unsigned char), cudaMemcpyDeviceToHost));
 
-        greyscale_image_org(width, height, unchar_image, gray_image);
+        gpuErrchk(
+            cudaMemcpy(gray_imagem, d_gray_image, size * sizeof(unsigned char), cudaMemcpyDeviceToHost));
 
-        create_histogram_org(gray_image, histogram, size);
+        create_histogram_org(gray_imagem, histogram, size);
 
         float cdf_min;
         calculate_cdf_and_fin_min(histogram, cdf, size, cdf_min);
