@@ -61,8 +61,8 @@ namespace cp
         }
     }
 
-    __global__ void greyscale_image_org_kernel(const int width, const int height, const unsigned char* uchar_image,
-                                               unsigned char* gray_image)
+    __global__ void greyscale_image_kernel(const int width, const int height, const unsigned char* uchar_image,
+                                           unsigned char* gray_image)
     {
         const int idx = blockIdx.x * blockDim.x + threadIdx.x;
         if (const int num_pixels = width * height; idx < num_pixels)
@@ -70,7 +70,8 @@ namespace cp
             const auto r = uchar_image[3 * idx];
             const auto g = uchar_image[3 * idx + 1];
             const auto b = uchar_image[3 * idx + 2];
-            gray_image[idx] = static_cast<unsigned char>(0.21 * r + 0.71 * g + 0.07 * b);
+            float gray_val = __fmaf_rn(0.21f, r, __fmaf_rn(0.71f, g, 0.07f * b));
+            gray_image[idx] = static_cast<unsigned char>(gray_val);
         }
     }
 
@@ -108,7 +109,7 @@ namespace cp
         int threadsPerBlock = 256;
         int blocksPerGrid = (num_pixels + threadsPerBlock - 1) / threadsPerBlock;
 
-        greyscale_image_org_kernel<<<blocksPerGrid, threadsPerBlock>>>(width, height, d_uchar_image, d_gray_image);
+        greyscale_image_kernel<<<blocksPerGrid, threadsPerBlock>>>(width, height, d_uchar_image, d_gray_image);
         cudaDeviceSynchronize();
     }
 
