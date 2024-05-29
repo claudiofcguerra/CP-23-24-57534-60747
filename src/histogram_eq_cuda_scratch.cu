@@ -122,7 +122,6 @@ namespace cp
 
         color_correct_and_output_kernel<<<blocksPerGrid, threadsPerBlock>>>(
             d_output_image_data, d_uchar_image, cdf, size_channels, cdf_min);
-
         cudaDeviceSynchronize();
     }
 
@@ -224,13 +223,13 @@ namespace cp
                                    histogram, cdf);
             gpuErrchk(
                 cudaMemcpy(d_input_image_data, d_output_image_data, size_channels * sizeof(float),
-                    cudaMemcpyHostToDevice
+                    cudaMemcpyDeviceToDevice
                 ));
         }
 
         gpuErrchk(
             cudaMemcpy(output_image_data, d_output_image_data, size_channels * sizeof(float),
-                cudaMemcpyHostToDevice
+                cudaMemcpyDeviceToHost
             ));
 
         cuda_free_memory();
