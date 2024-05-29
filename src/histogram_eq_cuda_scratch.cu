@@ -70,8 +70,7 @@ namespace cp
             const auto r = uchar_image[3 * idx];
             const auto g = uchar_image[3 * idx + 1];
             const auto b = uchar_image[3 * idx + 2];
-            float gray_val = __fmaf_rn(0.21f, r, __fmaf_rn(0.71f, g, 0.07f * b));
-            gray_image[idx] = static_cast<unsigned char>(gray_val);
+            gray_image[idx] = static_cast<unsigned char>(0.21 * r + 0.71 * g + 0.07 * b + 0.001);
         }
     }
 
