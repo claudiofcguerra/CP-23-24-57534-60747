@@ -8,9 +8,26 @@ namespace cp
 {
     constexpr auto HISTOGRAM_LENGTH = 256;
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+    // https://stackoverflow.com/questions/14038589/what-is-the-canonical-way-to-check-for-errors-using-the-cuda-runtime-api
+    inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true)
+    {
+        if (code != cudaSuccess)
+        {
+            fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+            if (abort) exit(code);
+        }
+    }
+
     static float prob(const int x, const int size)
     {
         return static_cast<float>(x) / static_cast<float>(size);
+    }
+
+
+    static unsigned char correct_color(const float cdf_val, const float cdf_min)
+    {
+        return static_cast<unsigned char>(255 * (cdf_val - cdf_min) / (1 - cdf_min));
     }
 
     static void initialize_uchar_image_array(const float* input_image_data,
@@ -19,12 +36,6 @@ namespace cp
     {
         for (int i = 0; i < size_channels; i++)
             uchar_image[i] = static_cast<unsigned char>(255 * input_image_data[i]);
-    }
-
-
-    static unsigned char correct_color(const float cdf_val, const float cdf_min)
-    {
-        return static_cast<unsigned char>(255 * (cdf_val - cdf_min) / (1 - cdf_min));
     }
 
     static void greyscale_image_org(const int width, const int height,
@@ -93,6 +104,21 @@ namespace cp
         calculate_cdf_and_fin_min(histogram, cdf, size, cdf_min);
 
         color_correct_and_output(output_image_data, uchar_image, cdf, size_channels, cdf_min);
+    }
+
+    unsigned char* d_gray_image;
+
+    void cuda_prepare_memory(const int size, const int size_channels, const float* input_image_data)
+    {
+        gpuErrchk(cudaMalloc(reinterpret_cast<void**>(&d_gray_image), size * sizeof(unsigned char)));
+
+        gpuErrchk(
+            cudaMemcpy(d_input_image_data, input_image_data, size_channels * sizeof(float), cudaMemcpyHostToDevice));
+    }
+
+    void cuda_free_memory()
+    {
+        gpuErrchk(cudaFree(d_gray_image));
     }
 
 
