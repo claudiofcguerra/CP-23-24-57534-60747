@@ -10,7 +10,7 @@ namespace cp
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
     // https://stackoverflow.com/questions/14038589/what-is-the-canonical-way-to-check-for-errors-using-the-cuda-runtime-api
-    inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true)
+    inline void gpuAssert(const cudaError_t code, const char* file, const int line, const bool abort = true)
     {
         if (code != cudaSuccess)
         {
@@ -54,10 +54,9 @@ namespace cp
     }
 
     __global__ void initialize_uchar_image_array_kernel(const float* input_image_data, unsigned char* uchar_image,
-                                                        int size_channels)
+                                                        const int size_channels)
     {
-        int idx = blockIdx.x * blockDim.x + threadIdx.x;
-        if (idx < size_channels)
+        if (const int idx = blockIdx.x * blockDim.x + threadIdx.x; idx < size_channels)
         {
             uchar_image[idx] = static_cast<unsigned char>(255 * input_image_data[idx]);
         }
@@ -66,9 +65,8 @@ namespace cp
     __global__ void greyscale_image_org_kernel(const int width, const int height, const unsigned char* uchar_image,
                                                unsigned char* gray_image)
     {
-        int idx = blockIdx.x * blockDim.x + threadIdx.x;
-        int num_pixels = width * height;
-        if (idx < num_pixels)
+        const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+        if (const int num_pixels = width * height; idx < num_pixels)
         {
             const auto r = uchar_image[3 * idx];
             const auto g = uchar_image[3 * idx + 1];
@@ -84,10 +82,9 @@ namespace cp
 
     // CUDA kernel to perform color correction and output
     __global__ void color_correct_and_output_kernel(float* output_image_data, unsigned char* uchar_image,
-                                                    const float* cdf, int size_channels, float cdf_min)
+                                                    const float* cdf, const int size_channels, const float cdf_min)
     {
-        int idx = blockIdx.x * blockDim.x + threadIdx.x;
-        if (idx < size_channels)
+        if (const int idx = blockIdx.x * blockDim.x + threadIdx.x; idx < size_channels)
         {
             // Color correction
             uchar_image[idx] = correct_color(cdf[uchar_image[idx]], cdf_min);
@@ -96,7 +93,8 @@ namespace cp
         }
     }
 
-    void initialize_uchar_image_array(const float* d_input_image_data, unsigned char* d_uchar_image, int size_channels)
+    void initialize_uchar_image_array(const float* d_input_image_data, unsigned char* d_uchar_image,
+                                      const int size_channels)
     {
         int threadsPerBlock = 256;
         int blocksPerGrid = (size_channels + threadsPerBlock - 1) / threadsPerBlock;
@@ -109,7 +107,7 @@ namespace cp
     void greyscale_image(const int width, const int height, const unsigned char* d_uchar_image,
                          unsigned char* d_gray_image)
     {
-        int num_pixels = width * height;
+        const int num_pixels = width * height;
         int threadsPerBlock = 256;
         int blocksPerGrid = (num_pixels + threadsPerBlock - 1) / threadsPerBlock;
 
@@ -120,7 +118,7 @@ namespace cp
 
     // Host function to call the CUDA kernel
     void color_correct_and_output(float* d_output_image_data, unsigned char* d_uchar_image, const float* cdf,
-                                  int size_channels, float cdf_min)
+                                  const int size_channels, const float cdf_min)
     {
         int threadsPerBlock = 256;
         int blocksPerGrid = (size_channels + threadsPerBlock - 1) / threadsPerBlock;
@@ -135,13 +133,13 @@ namespace cp
     )
     {
         // Determine temporary device storage requirements for CUB
-        int num_samples = size;
-        float lower_level = 0.0f;
-        float upper_level = 256.0f;
+        const int num_samples = size;
+        constexpr float lower_level = 0.0f;
+        constexpr float upper_level = 256.0f;
         size_t temp_storage_bytes = 0;
         void* d_temp_storage = nullptr;
-        int num_levels = HISTOGRAM_LENGTH + 1;
-        auto d_samples = d_gray_image;
+        constexpr int num_levels = HISTOGRAM_LENGTH + 1;
+        const auto d_samples = d_gray_image;
 
         cub::DeviceHistogram::HistogramEven(
             d_temp_storage, temp_storage_bytes,
@@ -162,7 +160,8 @@ namespace cp
         cudaFree(d_temp_storage);
     }
 
-    static void calculate_cdf_and_fin_min(int (&histogram)[256], float (&cdf)[256], const int size, float& cdf_min)
+    static void calculate_cdf_and_fin_min(const int (&histogram)[256], float (&cdf)[256], const int size,
+                                          float& cdf_min)
     {
         cdf[0] = prob(histogram[0], size);
         cdf_min = cdf[0];
@@ -212,11 +211,11 @@ namespace cp
         const auto size_channels = size * channels;
 
         const wbImage_t output_image = wbImage_new(width, height, channels);
-        float* input_image_data = wbImage_getData(input_image);
+        const float* input_image_data = wbImage_getData(input_image);
         float* output_image_data = wbImage_getData(output_image);
 
-        std::shared_ptr<unsigned char[]> uchar_image(new unsigned char[size_channels]);
-        std::shared_ptr<unsigned char[]> gray_image(new unsigned char[size]);
+        const std::shared_ptr<unsigned char[]> uchar_image(new unsigned char[size_channels]);
+        const std::shared_ptr<unsigned char[]> gray_image(new unsigned char[size]);
 
         int histogram[HISTOGRAM_LENGTH];
         float cdf[HISTOGRAM_LENGTH];
