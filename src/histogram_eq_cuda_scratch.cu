@@ -19,7 +19,6 @@ namespace cp
         }
     }
 
-    // Allocate device memory for the histogram
     int* d_histogram;
     unsigned char *d_gray_image, *d_uchar_image;
     float *d_input_image_data, *d_output_image_data;
@@ -104,9 +103,7 @@ namespace cp
     {
         if (const int idx = blockIdx.x * blockDim.x + threadIdx.x; idx < size_channels)
         {
-            // Color correction
             uchar_image[idx] = correct_color(cdf[uchar_image[idx]], cdf_min);
-            // Output conversion
             output_image_data[idx] = static_cast<float>(uchar_image[idx]) / 255.0f;
         }
     }
@@ -153,7 +150,6 @@ namespace cp
         constexpr float upper_level = 256.0f;
         constexpr int num_levels = HISTOGRAM_LENGTH + 1;
 
-        // Compute the histogram using the pre-allocated temporary storage
         cub::DeviceHistogram::HistogramEven(
             d_histogram_temp_storage, histogram_temp_storage_bytes,
             d_gray_image, d_histogram,
@@ -203,9 +199,6 @@ namespace cp
 
     wbImage_t iterative_histogram_equalization(const wbImage_t& input_image, const int iterations)
     {
-        // Input 1 2 5 4 9 7 0 1
-        // Output: 1 3 8 12 21 28 28 29
-
         const auto width = wbImage_getWidth(input_image);
         const auto height = wbImage_getHeight(input_image);
         constexpr auto channels = 3;
