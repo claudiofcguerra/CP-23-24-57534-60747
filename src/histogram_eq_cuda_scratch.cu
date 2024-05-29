@@ -45,13 +45,29 @@ namespace cp
         return static_cast<float>(x) / static_cast<float>(size);
     }
 
-    __global__ void initialize_uchar_image_array_kernel(const float* d_input_image_data,
-                                                        unsigned char* d_uchar_image,
-                                                        const int size_channels)
+    // CUDA kernel to initialize uchar image array
+    __global__ void initialize_uchar_image_array_kernel(const float* input_image_data, unsigned char* uchar_image,
+                                                        int size_channels)
     {
-        const int tid = threadIdx.x + blockDim.x * blockIdx.x;
-        if (tid < size_channels)
-            d_uchar_image[tid] = static_cast<unsigned char>(255 * d_input_image_data[tid]);
+        int idx = blockIdx.x * blockDim.x + threadIdx.x;
+        if (idx < size_channels)
+        {
+            uchar_image[idx] = static_cast<unsigned char>(255 * input_image_data[idx]);
+        }
+    }
+
+    void initialize_uchar_image_array(const float* d_input_image_data, unsigned char* d_uchar_image, int size_channels)
+    {
+        // Define the number of threads per block and the number of blocks
+        int threadsPerBlock = 256;
+        int blocksPerGrid = (size_channels + threadsPerBlock - 1) / threadsPerBlock;
+
+        // Launch the kernel
+        initialize_uchar_image_array_kernel<<<blocksPerGrid, threadsPerBlock>>>(
+            d_input_image_data, d_uchar_image, size_channels);
+
+        // Synchronize the device
+        cudaDeviceSynchronize();
     }
 
     static void initialize_uchar_image_array(const float* input_image_data,
@@ -126,8 +142,9 @@ namespace cp
         auto* unchar_image = new unsigned char[size_channels];
 
         // initialize_uchar_image_array(input_image_data, uchar_image, size_channels);
-        initialize_uchar_image_array_kernel<<<(size + 255) / 256, 256>>>(
-            d_input_image_data, d_uchar_image, size_channels);
+        initialize_uchar_image_array(d_input_image_data, d_uchar_image, size_channels);
+        // initialize_uchar_image_array_kernel<<<(size + 255) / 256, 256>>>(
+        //     d_input_image_data, d_uchar_image, size_channels);
 
         gpuErrchk(
             cudaMemcpy(unchar_image, d_uchar_image, size_channels * sizeof(unsigned char), cudaMemcpyDeviceToHost));
