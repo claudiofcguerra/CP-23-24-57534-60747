@@ -3,8 +3,8 @@
 # Set the paths for the executables
 executables=(
     "cmake-build-debug/project_org"
-    #"cmake-build-debug/project_omp"
-    #"cmake-build-debug/project_cuda_refactor"
+    "cmake-build-debug/project_omp"
+    "cmake-build-debug/project_cuda_refactor"
 )
 
 input_folder="dataset"
