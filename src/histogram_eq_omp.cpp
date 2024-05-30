@@ -29,13 +29,12 @@ namespace cp
         return static_cast<unsigned char>(255 * (cdf_val - cdf_min) / (1 - cdf_min));
     }
 
-    static void greyscale_image_org(const int width, const int height,
-                                    const std::shared_ptr<unsigned char[]>& uchar_image,
-                                    int (&histogram)[256], const int size)
+    static void create_histogram_org(const int width, const int height,
+                                     const std::shared_ptr<unsigned char[]>& uchar_image,
+                                     int (&histogram)[256], const int size)
     {
-#pragma omp parallel for
+#pragma omp parallel for reduction(+ : histogram)
         for (int i = 0; i < height; i++)
-#pragma omp parallel for firstprivate(i)
             for (int j = 0; j < width; j++)
             {
                 const auto idx = i * width + j;
@@ -81,7 +80,7 @@ namespace cp
 
         initialize_uchar_image_array(input_image_data, uchar_image, size_channels);
 
-        greyscale_image_org(width, height, uchar_image, histogram, size);
+        create_histogram_org(width, height, uchar_image, histogram, size);
 
         float cdf_min;
         calculate_cdf_and_fin_min(histogram, cdf, size, cdf_min);
