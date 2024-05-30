@@ -7,8 +7,8 @@ using namespace cp;
 #define DATASET_FOLDER "../../dataset/"
 #define OUTPUT_FOLDER "../../dataset_output/"
 
-#define TEST_ITERATIONS 1
-#define BIG_INPUT_TEST_ITERATIONS 1
+#define TEST_ITERATIONS 20
+#define BIG_INPUT_TEST_ITERATIONS 10
 
 
 TEST(HistogramEq, input01)

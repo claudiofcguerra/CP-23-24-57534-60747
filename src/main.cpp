@@ -1,83 +1,19 @@
-#include <filesystem>
-#include "gtest/gtest.h"
+
 #include "histogram_eq.h"
+#include <cstdlib>
 
-using namespace cp;
+int main(int argc, char** argv)
+{
+    if (argc != 4)
+    {
+        std::cout << "usage" << argv[0] << " input_image.ppm n_iterations output_image.ppm\n";
+        return 1;
+    }
 
-#define DATASET_FOLDER "../../dataset/"
-#define OUTPUT_FOLDER "../../dataset_output/"
+    wbImage_t inputImage = wbImport(argv[1]);
+    int n_iterations = static_cast<int>(std::strtol(argv[2], nullptr, 10));
+    wbImage_t outputImage = cp::iterative_histogram_equalization(inputImage, n_iterations);
+    wbExport(argv[3], outputImage);
 
-#define TEST_ITERATIONS 10
-#define BIG_INPUT_TEST_ITERATIONS 3
-
-TEST(HistogramEq, input01_omp)
-{
-int avg = 0;
-for (int i = 0; i < TEST_ITERATIONS; i++)
-{
-wbImage_t inputImage = wbImport(DATASET_FOLDER "input01.ppm");
-auto start = std::chrono::high_resolution_clock::now();
-wbImage_t outputImage = iterative_histogram_equalization(inputImage, 4);
-auto end = std::chrono::high_resolution_clock::now();
-auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-avg += int(duration.count());
-if (i == TEST_ITERATIONS - 1) { wbExport(OUTPUT_FOLDER "output01_omp.ppm", outputImage); }
-}
-avg /= TEST_ITERATIONS;
-std::cout << "Execution time for " << TEST_ITERATIONS << " iterations was: " << avg <<
-" microseconds" << std::endl;
-}
-
-TEST(HistogramEq, input01_org)
-{
-int avg = 0;
-for (int i = 0; i < TEST_ITERATIONS; i++)
-{
-wbImage_t inputImage = wbImport(DATASET_FOLDER "input01.ppm");
-auto start = std::chrono::high_resolution_clock::now();
-wbImage_t outputImage = iterative_histogram_equalization(inputImage, 4);
-auto end = std::chrono::high_resolution_clock::now();
-auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-avg += int(duration.count());
-if (i == TEST_ITERATIONS - 1) { wbExport(OUTPUT_FOLDER "output01_org.ppm", outputImage); }
-}
-avg /= TEST_ITERATIONS;
-std::cout << "Execution time for " << TEST_ITERATIONS << " iterations was: " << avg <<
-" microseconds" << std::endl;
-}
-
-TEST(HistogramEq, big_input_omp)
-{
-int avg = 0;
-for (int i = 0; i < TEST_ITERATIONS; i++)
-{
-wbImage_t inputImage = wbImport(DATASET_FOLDER "sample_5184x3456.ppm");
-auto start = std::chrono::high_resolution_clock::now();
-wbImage_t outputImage = iterative_histogram_equalization(inputImage, 4);
-auto end = std::chrono::high_resolution_clock::now();
-auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-avg += int(duration.count());
-if (i == TEST_ITERATIONS - 1) { wbExport(OUTPUT_FOLDER "big_output_omp.ppm", outputImage); }
-}
-avg /= TEST_ITERATIONS;
-std::cout << "Execution time for " << TEST_ITERATIONS << " iterations was: " << avg <<
-" microseconds" << std::endl;
-}
-
-TEST(HistogramEq, big_input_org)
-{
-int avg = 0;
-for (int i = 0; i < TEST_ITERATIONS; i++)
-{
-wbImage_t inputImage = wbImport(DATASET_FOLDER "sample_5184x3456.ppm");
-auto start = std::chrono::high_resolution_clock::now();
-wbImage_t outputImage = iterative_histogram_equalization(inputImage, 4);
-auto end = std::chrono::high_resolution_clock::now();
-auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-avg += int(duration.count());
-if (i == TEST_ITERATIONS - 1) { wbExport(OUTPUT_FOLDER "big_output_org.ppm", outputImage); }
-}
-avg /= TEST_ITERATIONS;
-std::cout << "Execution time for " << TEST_ITERATIONS << " iterations was: " << avg <<
-" microseconds" << std::endl;
+    return 0;
 }
