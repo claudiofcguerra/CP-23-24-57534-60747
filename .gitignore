@@ -35,3 +35,5 @@
 cmake-build-*
 .idea/
 dataset_output/
+visualization/.venv
+visualization/.python-version
