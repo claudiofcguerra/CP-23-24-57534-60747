@@ -35,37 +35,64 @@ message("-- CUDA Architecture(s): " ${CMAKE_CUDA_ARCHITECTURES})
 
 include_directories(include)
 
+# Option to enable or disable vectorization
+option(ENABLE_VECTORIZATION "Enable vectorization" ON)
+
+# Set compiler flags based on the option
+if (ENABLE_VECTORIZATION)
+    message(STATUS "Vectorization enabled")
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        message(STATUS "GNU/CLANG")
+        add_compile_options(-ftree-vectorize)
+        add_compile_options(-O3)
+    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        message(STATUS "MSVC")
+        add_compile_options(/O2)  # MSVC doesn't have a direct equivalent, but /O2 enables some vectorization
+    endif ()
+else ()
+    message(STATUS "Vectorization disabled")
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        add_compile_options(-fno-tree-vectorize)
+    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        add_compile_options(/Od)  # Disable optimization in MSVC
+    endif ()
+endif ()
+
+
 # Enable OpmMP if available
 find_package(OpenMP REQUIRED)
+
 
 # Set CUDA properties
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 add_executable(project_omp
-        src/main.cpp
+        scripts/export_timings.cpp
         src/histogram_eq_omp.cpp
 )
+target_compile_definitions(project_omp PRIVATE CSV_FILE_SUFFIX="OMP")
 
 add_executable(project_org
-        src/main.cpp
+        scripts/export_timings.cpp
         src/histogram_eq_org.cpp
 )
-
-add_executable(project_cuda
-        src/main.cpp
-        src/histogram_eq_cuda.cu
-)
+target_compile_definitions(project_org PRIVATE CSV_FILE_SUFFIX="ORG_NOT_VECTORIZED")
 
 add_executable(project_cuda_refactor
-        src/main.cpp
+        scripts/export_timings.cpp
         src/histogram_eq_cuda_scratch.cu
+)
+target_compile_definitions(project_cuda_refactor PRIVATE CSV_FILE_SUFFIX="CUDA")
+
+add_executable(dataset_generator
+        src/dataset_generator.cpp
 )
 
 target_link_libraries(project_org PRIVATE wb)
-target_link_libraries(project_omp PRIVATE wb OpenMP::OpenMP_CXX)
-target_link_libraries(project_cuda PRIVATE wb)
+target_link_libraries(dataset_generator PRIVATE wb)
 target_link_libraries(project_cuda_refactor PRIVATE wb)
+target_link_libraries(project_omp PRIVATE wb OpenMP::OpenMP_CXX)
 
 ##############################################################
 # Tests
